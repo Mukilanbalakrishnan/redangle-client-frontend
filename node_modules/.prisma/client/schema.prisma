@@ -1,0 +1,589 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId               Int                     @id @default(autoincrement()) @map("user_id")
+  uniqueId             String                  @unique @map("unique_id") @db.VarChar(50)
+  email                String                  @unique @db.VarChar(255)
+  passwordHash         String                  @map("password_hash")
+  role                 UserRole
+  createdAt            DateTime?               @default(now()) @map("created_at")
+  resetToken           String?                 @map("reset_token") @db.VarChar(64)
+  resetTokenExpiry     DateTime?               @map("reset_token_expiry")
+  adminAttendances     AdminAttendance[]
+  createdLeaves        EmployeeLeaveRequests[] @relation("LeaveCreatedBy")
+  createdEmployees     EmployeesDetail[]       @relation("EmployeeCreatedBy")
+  employeesDetail      EmployeesDetail?        @relation("UserAccount")
+  createdInvoiceIssues InvoiceIssues[]         @relation("InvoiceIssueCreatedBy")
+  createdInvoices      Invoices[]              @relation("InvoiceCreatedBy")
+  updatedInvoices      Invoices[]              @relation("InvoiceUpdatedBy")
+  createdLeads         LeadsDetail[]           @relation("LeadCreatedBy")
+  updatedLeads         LeadsDetail[]           @relation("LeadUpdatedBy")
+  notifications        Notification[]
+  createdPackages      packageServices[]       @relation("PackageCreatedBy")
+  updatedPackages      packageServices[]       @relation("PackageUpdatedBy")
+  updatedPayments      Payments[]              @relation("PaymentUpdatedBy")
+  createdQuotations    QuotationPackages[]
+  verifiedPayments     Payments[]              @relation("PaymentVerifiedBy")
+
+  @@map("users")
+}
+
+model EmployeesDetail {
+  employeeId             Int                     @id @default(autoincrement()) @map("employee_id")
+  userId                 Int?                    @unique @map("user_id")
+  firstName              String                  @map("first_name") @db.VarChar(100)
+  lastName               String                  @map("last_name") @db.VarChar(100)
+  contactNumber          String?                 @map("contact_number") @db.VarChar(20)
+  dob                    DateTime?               @db.Date
+  createdAt              DateTime?               @default(now()) @map("created_at")
+  address                String?
+  workLocation           String?                 @map("work_location") @db.VarChar(150)
+  salesType              String?                 @map("sales_type") @db.VarChar(100)
+  experience             Int?
+  dateOfJoin             DateTime?               @map("date_of_join") @db.Date
+  portfolioPath          String?                 @map("portfolio_path")
+  photographyDescription String?                 @map("photography_description")
+  position               String?                 @map("position") @db.VarChar(100)
+  commission             Decimal                 @default(0) @db.Decimal(10, 2)
+  isActive               Boolean                 @default(true) @map("is_active")
+  isDeleted              Boolean                 @default(false) @map("is_deleted")
+  createdBy              Int?                    @map("created_by")
+  documentPdfPath        String?                 @map("document_pdf_path")
+  gender                 String?                 @default("Male") @db.VarChar(20)
+  profileImagePath       String?                 @map("profile_image_path")
+  financials             EmployeeFinancials[]
+  leaveRequests          EmployeeLeaveRequests[]
+  attendances            EmployeesAttendance[]
+  createdByUser          User?                   @relation("EmployeeCreatedBy", fields: [createdBy], references: [userId])
+  user                   User?                   @relation("UserAccount", fields: [userId], references: [userId], onDelete: Cascade)
+  events                 Events[]
+  leadAssignments        LeadEmployee[]          @relation("EmployeeLeadAssignment")
+  notifications          Notification[]
+
+  @@map("employees_detail")
+}
+
+model EmployeesAttendance {
+  attendanceId Int              @id @default(autoincrement()) @map("attendance_id")
+  employeeId   Int?             @map("employee_id")
+  date         DateTime         @db.Date
+  checkIn      DateTime?        @map("check_in")
+  checkOut     DateTime?        @map("check_out")
+  status       String?          @db.VarChar(20)
+  employee     EmployeesDetail? @relation(fields: [employeeId], references: [employeeId])
+
+  @@map("employees_attendance")
+}
+
+model AdminAttendance {
+  attendanceId Int       @id @default(autoincrement()) @map("attendance_id")
+  userId       Int       @map("user_id")
+  date         DateTime  @db.Date
+  checkIn      DateTime? @map("check_in")
+  checkOut     DateTime? @map("check_out")
+  status       String?   @db.VarChar(20)
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("admin_attendance")
+}
+
+model EmployeeFinancials {
+  financialId   Int             @id @default(autoincrement()) @map("financial_id")
+  employeeId    Int             @map("employee_id")
+  salary        Decimal         @db.Decimal(12, 2)
+  accountNumber String          @map("account_number") @db.VarChar(30)
+  bankName      String          @map("bank_name") @db.VarChar(150)
+  ifscCode      String          @map("ifsc_code") @db.VarChar(20)
+  commission    Decimal         @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime?       @default(now()) @map("created_at")
+  updatedAt     DateTime?       @default(now()) @map("updated_at")
+  employee      EmployeesDetail @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@map("employee_financials")
+}
+
+model EmployeeLeaveRequests {
+  leaveRequestId Int                @id @default(autoincrement()) @map("leave_request_id")
+  employeeId     Int                @map("employee_id")
+  leaveType      String             @map("leave_type") @db.VarChar(50)
+  fromDate       DateTime           @map("from_date") @db.Date
+  toDate         DateTime           @map("to_date") @db.Date
+  noOfDays       Int?               @map("no_of_days")
+  status         LeaveRequestStatus @default(Pending)
+  reason         String?
+  createdAt      DateTime?          @default(now()) @map("created_at")
+  createdBy      Int?               @map("created_by")
+  updatedAt      DateTime?          @default(now()) @map("updated_at")
+  createdByUser  User?              @relation("LeaveCreatedBy", fields: [createdBy], references: [userId])
+  employee       EmployeesDetail    @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@map("employee_leave_requests")
+}
+
+model Events {
+  eventId       Int              @id @default(autoincrement()) @map("event_id")
+  eventName     String           @map("event_name") @db.VarChar(200)
+  leadId        Int?             @map("lead_id")
+  employeeId    Int?             @map("employee_id")
+  budget        Decimal          @default(0.0) @db.Decimal(12, 2)
+  eventDatetime DateTime         @map("event_datetime")
+  notes         String?
+  status        EventStatus
+  createdAt     DateTime?        @default(now()) @map("created_at")
+  updatedAt     DateTime?        @default(now()) @map("updated_at")
+  employee      EmployeesDetail? @relation(fields: [employeeId], references: [employeeId])
+  lead          LeadsDetail?     @relation(fields: [leadId], references: [leadId])
+  payments      Payments[]
+
+  @@map("events")
+}
+
+model InvoiceIssues {
+  issueId       Int            @id @default(autoincrement()) @map("issue_id")
+  invoiceId     Int?           @map("invoice_id")
+  issueTitle    String         @map("issue_title") @db.VarChar(255)
+  description   String?
+  status        String         @default("Open") @db.VarChar(50)
+  createdAt     DateTime?      @default(now()) @map("created_at")
+  createdBy     Int?           @map("created_by")
+  createdByUser User?          @relation("InvoiceIssueCreatedBy", fields: [createdBy], references: [userId])
+  invoice       Invoices?      @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  notifications Notification[]
+
+  @@map("invoice_issues")
+}
+
+model Invoices {
+  invoiceId       Int              @id @default(autoincrement()) @map("invoice_id")
+  leadId          Int              @map("lead_id")
+  billingDate     DateTime         @map("billing_date") @db.Date
+  plan            String           @db.VarChar(150)
+  status          String           @default("Pending") @db.VarChar(50)
+  createdAt       DateTime?        @default(now()) @map("created_at")
+  createdBy       Int?             @map("created_by")
+  updatedAt       DateTime?        @default(now()) @map("updated_at")
+  updatedBy       Int?             @map("updated_by")
+  sendAt          DateTime?        @map("sent_at")
+  token           String?          @unique @default(cuid()) @map("token") @db.VarChar(255)
+  issues          InvoiceIssues[]
+  createdByUser   User?            @relation("InvoiceCreatedBy", fields: [createdBy], references: [userId])
+  lead            LeadsDetail      @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+  updatedByUser   User?            @relation("InvoiceUpdatedBy", fields: [updatedBy], references: [userId])
+  packageInvoices PackageInvoice[]
+  payments        Payments[]
+  addons          InvoiceAddon[]
+
+  invoiceSnapshot Json?
+  totalAmount     Float?
+  discount        Float?
+  previewEvents   Json?
+  qtyOverrides    Json?
+  paid            Float? @default(0)
+
+  invoiceAdditionals InvoiceAdditional[]
+  invoiceItems       InvoiceItem[]
+  markings           InvoiceMarking[]
+
+  @@map("invoices")
+}
+
+model InvoiceAddon {
+  id             Int     @id @default(autoincrement())
+  invoiceId      Int
+  addonServiceId Int
+  quantity       Int
+  price          Decimal
+  total          Decimal
+  category       String?
+
+  invoice      Invoices     @relation(fields: [invoiceId], references: [invoiceId])
+  addonService AddonService @relation(fields: [addonServiceId], references: [id])
+}
+
+model LeadsDetail {
+  leadId           Int              @id @default(autoincrement()) @map("lead_id")
+  firstName        String?          @map("first_name") @db.VarChar(100)
+  lastName         String?          @map("last_name") @db.VarChar(100)
+  email            String?          @db.VarChar(255)
+  contactNumber    String?          @map("contact_number") @db.VarChar(20)
+  leadFollowedBy   String?          @map("lead_followed_by") @db.VarChar(150)
+  address          String?
+  eventType        String?          @map("event_type") @db.VarChar(100)
+  leadSource       String?          @map("lead_source") @db.VarChar(100)
+  priority         String?          @db.VarChar(20)
+  budget           Decimal?         @db.Decimal(12, 2)
+  paidAmount       Decimal?         @default(0.0) @map("paid_amount") @db.Decimal(12, 2)
+  discount         Decimal?         @default(0.0) @db.Decimal(12, 2)
+  eventDate        DateTime?        @map("event_date") @db.Date
+  description      String?
+  createdTime      DateTime?        @default(now()) @map("created_time")
+  status           String           @default("pending") @db.VarChar(50)
+  isActive         Boolean          @default(true) @map("is_active")
+  isDeleted        Boolean          @default(false) @map("is_deleted")
+  currentStage     LeadStage        @default(Lead) @map("current_stage")
+  updatedAt        DateTime?        @default(now()) @map("updated_at")
+  createdBy        Int?             @map("created_by")
+  updatedBy        Int?             @map("updated_by")
+  events           Events[]
+  invoices         Invoices[]
+  leadCalls        leadCall[]
+  leadEmployee     LeadEmployee[]   @relation("LeadAssignment")
+  createdByUser    User?            @relation("LeadCreatedBy", fields: [createdBy], references: [userId])
+  updatedByUser    User?            @relation("LeadUpdatedBy", fields: [updatedBy], references: [userId])
+  quotationLeads   QuotationLead[]
+  payments         Payments[]
+  addons           LeadAddon[]
+  leadSerialNumber String?          @map("lead_serial_number") @db.VarChar(20)
+  leadType         String           @default("LD")
+  passwordHash     String?          @map("password_hash")
+  clientToken      String?          @map("client_token")
+  clientDeliveries ClientDelivery[]
+
+  @@map("leads_detail")
+}
+
+model LeadEmployee {
+  leadEmployeeId    Int             @id @default(autoincrement()) @map("lead_employee_id")
+  leadId            Int             @map("lead_id")
+  employeeId        Int             @map("employee_id")
+  taskName          String?         @map("task_name") @db.VarChar(150)
+  EstimatedDuration Int?            @map("estimated_duration")
+  deadline          DateTime?       @db.Date
+  priority          String?         @db.VarChar(20)
+  description       String?
+  createdAt         DateTime?       @default(now()) @map("created_at")
+  createdBy         Int?            @map("created_by")
+  employee          EmployeesDetail @relation("EmployeeLeadAssignment", fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  lead              LeadsDetail     @relation("LeadAssignment", fields: [leadId], references: [leadId], onDelete: Cascade)
+
+  @@unique([leadId, employeeId])
+  @@map("lead_employee")
+}
+
+model Payments {
+  paymentId      Int           @id @default(autoincrement()) @map("payment_id")
+  invoiceId      Int?          @map("invoice_id")
+  eventId        Int?          @map("event_id")
+  leadId         Int           @map("lead_id")
+  paymentType    String        @map("payment_type") @db.VarChar(50)
+  amount         Decimal       @default(0.0) @db.Decimal(12, 2)
+  paymentDate    DateTime      @map("payment_date") @db.Date
+  paid           Decimal       @default(0.0) @db.Decimal(12, 2)
+  balance        Decimal       @default(0.0) @db.Decimal(12, 2)
+  notes          String?
+  proofUrl       String?       @map("proof_url")
+  status         PaymentStatus @default(PENDING) @map("status")
+  verifiedBy     Int?          @map("verified_by")
+  verifiedAt     DateTime?     @map("verified_at")
+  createdAt      DateTime?     @default(now()) @map("created_at")
+  updatedBy      Int?          @map("updated_by")
+  updatedAt      DateTime?     @default(now()) @map("updated_at")
+  event          Events?       @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
+  updatedByUser  User?         @relation("PaymentUpdatedBy", fields: [updatedBy], references: [userId])
+  verifiedByUser User?         @relation("PaymentVerifiedBy", fields: [verifiedBy], references: [userId])
+  invoice        Invoices?     @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  lead           LeadsDetail   @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model QuotationPackages {
+  id              Int              @id @default(autoincrement())
+  packageId       Int?             @map("package_id")
+  package         packageServices? @relation(fields: [packageId], references: [id])
+  serviceName     String           @map("service_name")
+  serviceProvided String?          @map("service_provided")
+  quantity        Int              @default(1)
+  comboId         Int?             @map("combo_id")
+  terms           Int?
+  description     String?
+  price           Int              @default(0)
+  items           Json? // store customized items snapshot
+  createdAt       DateTime?        @default(now()) @map("created_at")
+  createdBy       Int?             @map("created_by")
+  isDeleted       Boolean          @default(false) @map("is_deleted")
+  imageUrl        String?          @map("image_url")
+  quotationLeads  QuotationLead[]
+  combo           comboEvent?      @relation(fields: [comboId], references: [id])
+  createdByUser   User?            @relation(fields: [createdBy], references: [userId])
+
+  @@map("quotation_packages")
+}
+
+model QuotationLead {
+  id          Int                     @id @default(autoincrement())
+  leadId      Int                     @map("lead_id")
+  quotationId Int                     @map("quotation_id")
+  notes       String?
+  status      QuotationApprovalStatus
+  sentAt      DateTime?               @default(now()) @map("sent_at")
+  createdAt   DateTime?               @default(now()) @map("created_at")
+  token       String?                 @unique @default(cuid()) @map("token") @db.VarChar(255)
+  lead        LeadsDetail             @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+  quotation   QuotationPackages       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  issues      QuotationLeadIssues[]
+
+  @@map("quotation_lead")
+}
+
+model QuotationLeadIssues {
+  id              Int            @id @default(autoincrement())
+  quotationLeadId Int            @map("quotation_lead_id")
+  issueTitle      String         @map("issue_title") @db.VarChar(255)
+  description     String?
+  status          String         @default("Open") @db.VarChar(50)
+  createdAt       DateTime?      @default(now()) @map("created_at")
+  notifications   Notification[]
+  quotationLead   QuotationLead  @relation(fields: [quotationLeadId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_lead_issues")
+}
+
+model packageServices {
+  id                Int                  @id @default(autoincrement())
+  packageTitle      String               @map("package_title") @db.VarChar(200)
+  packageType       String               @map("package_type") @db.VarChar(100)
+  price             Decimal              @default(0.0) @db.Decimal(12, 2)
+  imageUrl          String?              @map("image_url")
+  createdAt         DateTime?            @default(now()) @map("created_at")
+  updatedAt         DateTime?            @default(now()) @map("updated_at")
+  createdBy         Int?                 @map("created_by")
+  updatedBy         Int?                 @map("updated_by")
+  createdByUser     User?                @relation("PackageCreatedBy", fields: [createdBy], references: [userId])
+  updatedByUser     User?                @relation("PackageUpdatedBy", fields: [updatedBy], references: [userId])
+  packageInvoice    PackageInvoice[]
+  quotationPackages QuotationPackages[]
+  items             PackageServiceItem[]
+
+  @@map("packageServices")
+}
+
+model leadCall {
+  id        Int         @id @default(autoincrement())
+  leadId    Int         @map("lead_id")
+  callTime  DateTime    @default(now()) @map("call_Time") @db.Date
+  startTime DateTime?   @map("start_time")
+  endTime   DateTime?   @map("end_time")
+  notes     String?
+  isTaken   Boolean     @default(false) @map("is_taken")
+  createdAt DateTime?   @default(now()) @map("created_at")
+  lead      LeadsDetail @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+
+  @@map("lead_call")
+}
+
+model PackageInvoice {
+  id        Int             @id @default(autoincrement())
+  invoiceId Int             @map("invoice_id")
+  packageId Int             @map("package_id")
+  status    String          @db.VarChar(50)
+  unit      Int             @default(1)
+  isRemoved Boolean         @default(false) @map("is_removed")
+  sentAt    DateTime?       @default(now()) @map("sent_at")
+  createdAt DateTime?       @default(now()) @map("created_at")
+  invoice   Invoices        @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+  package   packageServices @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@map("package_lead")
+}
+
+model comboEvent {
+  id                Int                 @id @default(autoincrement())
+  comboName         String              @map("combo_name") @db.VarChar(150)
+  description       String?
+  createdAt         DateTime?           @default(now()) @map("created_at")
+  quotationPackages QuotationPackages[]
+
+  @@map("combo_event")
+}
+
+model Notification {
+  notificationId   Int                  @id @default(autoincrement()) @map("notification_id")
+  issueType        String               @map("issue_type") @db.VarChar(50)
+  invoiceIssueId   Int?                 @map("invoice_issue_id")
+  quotationIssueId Int?                 @map("quotation_issue_id")
+  title            String               @db.VarChar(255)
+  message          String?
+  isRead           Boolean              @default(false) @map("is_read")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  readAt           DateTime?            @map("read_at")
+  employeeId       Int?                 @map("employee_id")
+  userId           Int?                 @map("user_id")
+  employee         EmployeesDetail?     @relation(fields: [employeeId], references: [employeeId])
+  invoiceIssue     InvoiceIssues?       @relation(fields: [invoiceIssueId], references: [issueId], onDelete: Cascade)
+  quotationIssue   QuotationLeadIssues? @relation(fields: [quotationIssueId], references: [id], onDelete: Cascade)
+  user             User?                @relation(fields: [userId], references: [userId])
+
+  @@map("notifications")
+}
+
+model PackageServiceItem {
+  id               Int                    @id @default(autoincrement())
+  packageServiceId Int                    @map("package_service_id")
+  name             String                 @db.VarChar(255)
+  quantity         Int                    @default(1)
+  price            Decimal                @default(0.0) @db.Decimal(12, 2)
+  category         PackageServiceCategory
+  createdAt        DateTime?              @default(now()) @map("created_at")
+
+  packageService packageServices @relation(fields: [packageServiceId], references: [id], onDelete: Cascade)
+
+  @@map("package_service_items")
+}
+
+model AddonService {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(200)
+  unitLabel  String    @default("Session") @map("unit_label")
+  defaultQty Int       @default(1)
+  price      Decimal   @db.Decimal(12, 2)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime? @default(now()) @map("created_at")
+
+  leadAddons    LeadAddon[]
+  invoiceAddons InvoiceAddon[]
+
+  @@map("addon_services")
+}
+
+model LeadAddon {
+  id             Int @id @default(autoincrement())
+  leadId         Int @map("lead_id")
+  addonServiceId Int @map("addon_service_id")
+
+  quantity Int     @default(1)
+  price    Decimal @db.Decimal(12, 2) // snapshot price
+  total    Decimal @db.Decimal(12, 2)
+  category String?
+
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  lead         LeadsDetail  @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+  addonService AddonService @relation(fields: [addonServiceId], references: [id])
+
+  @@unique([leadId, addonServiceId])
+  @@map("lead_addons")
+}
+
+model InvoiceAdditional {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @unique @map("invoice_id")
+  events    Json     @map("events") // array of event objects with type, date, day, timing
+  discount  Decimal  @default(0.0) @db.Decimal(12, 2) // total discount for invoice
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice Invoices @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+
+  @@map("invoice_additional")
+}
+
+model InvoiceItem {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int
+  name      String
+  quantity  Int
+  category  String?
+  price     Decimal  @default(0.0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  invoice Invoices @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+}
+
+model InvoiceMarking {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @map("invoice_id")
+  label     String   @db.VarChar(255)
+  value     String   @default("") @db.VarChar(500)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice Invoices @relation(fields: [invoiceId], references: [invoiceId], onDelete: Cascade)
+
+  @@map("invoice_markings")
+}
+
+enum UserRole {
+  admin
+  employee
+  partner
+}
+
+enum EventStatus {
+  inprogress
+  completed
+  pending
+  approved
+}
+
+enum LeaveRequestStatus {
+  Pending
+  Approved
+  Rejected
+  Cancelled
+}
+
+enum QuotationApprovalStatus {
+  pending
+  sent
+  approved
+  rejected
+}
+
+enum LeadStage {
+  Lead
+  Quotation
+  Confirmation
+  Finalised
+  callUp
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PackageServiceCategory {
+  WEDDING
+  RECEPTION
+  ENGAGEMENT
+  RITUALS
+  EXTRA_COMPLEMENTARY
+  SHOOT
+  DELIVERABLE
+  COMPLEMENTARY
+}
+
+model LeadSequence {
+  id       String @id @db.VarChar(10) // e.g. "RAS" or "LD"
+  seqValue Int    @default(0) @map("seq_value")
+
+  @@map("lead_sequence")
+}
+
+model ClientDelivery {
+  id             Int         @id @default(autoincrement())
+  leadId         Int         @map("lead_id")
+  deliveryType   String      @map("delivery_type") // e.g. "RAW_DATA", "FINAL_DELIVERABLES"
+  driveLink      String?     @map("drive_link")
+  videoDriveLink String?     @map("video_drive_link")
+  dronePhotoLink String?     @map("drone_photo_drive_link")
+  droneVideoLink String?     @map("drone_video_drive_link")
+  status         String      @default("pending") // pending, client_approved, rejected, query_raised
+  notes          String?
+  queryCount     Int         @default(0) @map("query_count")
+  createdAt      DateTime?   @default(now()) @map("created_at")
+  lead           LeadsDetail @relation(fields: [leadId], references: [leadId], onDelete: Cascade)
+
+  @@map("client_deliveries")
+}

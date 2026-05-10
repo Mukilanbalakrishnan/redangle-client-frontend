@@ -9,6 +9,7 @@ import clientQuotationRoutes from './src/routes/clientQuotationRoutes';
 import clientInvoiceRoutes from './src/routes/clientInvoiceRoutes';
 import clientDeliveryRoutes from './src/routes/clientDeliveryRoutes';
 import clientEventRoutes from './src/routes/clientEventRoutes';
+import clientWorksRoutes from './src/routes/clientWorksRoutes';
 
 dotenv.config();
 
@@ -22,8 +23,17 @@ app.use(
   })
 );
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: [process.env.FRONTEND_URL as string, process.env.CLIENT_FRONTEND_URL as string, 'http://localhost:5174', 'http://localhost:5175'],
+  origin: allowedOrigins,
   credentials: true,
 }));
 
@@ -58,6 +68,9 @@ app.use('/api/deliveries', clientDeliveryRoutes);
 
 // Client Event Routes
 app.use('/api/events', clientEventRoutes);
+
+// Client Works Routes
+app.use('/api/works', clientWorksRoutes);
 
 // 404 handler
 app.use((req, res) => {
