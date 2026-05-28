@@ -41,11 +41,6 @@ const buildTracking = ({
       detail: hasAssignment ? "Team member has been assigned to this work." : "Assignment is not available yet.",
     },
     {
-      label: "Schedule confirmed",
-      status: hasEvent ? "completed" : hasAssignment ? "in_progress" : "pending",
-      detail: hasEvent ? "Event or production schedule is linked." : "Schedule details will appear after confirmation.",
-    },
-    {
       label: "Incoming data received",
       status: rawDeliveries.length > 0 ? "completed" : hasEvent ? "in_progress" : "pending",
       detail: rawDeliveries.length > 0 ? "Raw files are available for client review." : "No incoming data has been delivered yet.",
