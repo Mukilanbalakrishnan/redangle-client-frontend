@@ -201,6 +201,47 @@ export class ClientInvoiceController {
         data: { invoiceId, issueTitle, description: description || null, status: "Open" },
       });
 
+      // 🔔 Notify admin + assigned employees (non-blocking)
+      try {
+        const lead = await prisma.leadsDetail.findUnique({ where: { leadId } });
+        const leadName = lead?.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : null;
+        const leadLabel = leadName ? `"${leadName}"` : `#${leadId}`;
+        const title = `Client raised an invoice issue`;
+        const descPart = description ? `\nDetails: ${description}` : "";
+        const message = `The client for lead ${leadLabel} raised an issue.\n\nIssue: "${issueTitle}"${descPart}\n\nPlease review and respond.`;
+
+        const admins = await prisma.user.findMany({
+          where: { role: "admin" },
+          select: { userId: true },
+        });
+
+        const assignments = await prisma.leadEmployee.findMany({
+          where: { leadId },
+          include: { employee: { select: { userId: true } } },
+        });
+        
+        const employeeUserIds = assignments
+          .map((a) => a.employee.userId)
+          .filter((uid) => uid !== null) as number[];
+
+        const allAdminIds = admins.map((a) => a.userId);
+        const uniqueUserIds = [...new Set([...allAdminIds, ...employeeUserIds])];
+
+        if (uniqueUserIds.length > 0) {
+          await prisma.notification.createMany({
+            data: uniqueUserIds.map((userId) => ({
+              userId,
+              issueType: "InvoiceIssue",
+              title,
+              message,
+              isRead: false,
+            })),
+          });
+        }
+      } catch (notificationError) {
+        console.error("Failed to create notification on invoice query:", notificationError);
+      }
+
       return res.status(201).json({ success: true, data: issue, message: "Query raised successfully" });
     } catch (e: any) {
       return res.status(500).json({ success: false, message: e.message });

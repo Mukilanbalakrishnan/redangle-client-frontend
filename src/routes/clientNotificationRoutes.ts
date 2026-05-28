@@ -1,10 +1,11 @@
 import express from 'express';
 import { getClientNotifications } from '../controller/clientNotificationController';
-import { verifyClientToken } from '../util/auth';
+import { authenticateClient } from '../util/auth';
 
 const router = express.Router();
 
 // Get dynamically generated client notifications
-router.get('/', verifyClientToken, getClientNotifications);
+router.get('/', authenticateClient, getClientNotifications);
 
 export default router;
+
