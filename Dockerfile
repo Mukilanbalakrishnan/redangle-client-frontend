@@ -1,48 +1,34 @@
-# =========================
-# Stage 1 - Builder
-# =========================
-FROM node:20-alpine AS builder
+# ==========================================
+# Stage 1: Build the React Application
+# ==========================================
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install dependencies
 COPY package*.json ./
-
-# Install all dependencies
 RUN npm install
 
-# Copy prisma schema
-COPY prisma ./prisma
-
-# Generate prisma client
-RUN npx prisma generate
-
-# Copy source code
+# Copy source code and build the app
 COPY . .
+RUN npm run build 
+# Note: If you are using Vite, change `build` to `dist` in the next stage too.
 
-# Build TypeScript
-RUN npm run build
-
-# =========================
-# Stage 2 - Production
-# =========================
-FROM node:20-alpine AS production
+# ==========================================
+# Stage 2: Run the App
+# ==========================================
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install 'serve' globally to host the static files
+RUN npm install -g serve
 
-# Install only production dependencies
-RUN npm install --omit=dev
-
-# Copy build files from builder
+# Copy only the compiled static files from the builder stage
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Expose backend port
-EXPOSE 5000
+# Expose the port 'serve' will use
+EXPOSE 3000
 
-# Start application
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Run the static server
+CMD ["serve", "-s", "dist", "-l", "3000"]
