@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Compass, Camera, Download, FileText, IndianRupee, Bell, LogOut, BriefcaseBusiness, Film, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Compass, Camera, Download, FileText, IndianRupee, Bell, LogOut, BriefcaseBusiness, Film, ChevronDown, MessageSquareWarning } from 'lucide-react'
 
 const navItems = [
     { name: 'Dashboard', path: '/client/dashboard', icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const navItems = [
     },
     { name: 'Events', path: '/client/events', icon: Camera },
     { name: 'Delivery', path: '/client/delivery', icon: Download },
+    { name: 'Raise Complaint', path: '/client/raise-complaint', icon: MessageSquareWarning },
     { name: 'Notifications', path: '/client/notifications', icon: Bell },
 ]
 

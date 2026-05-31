@@ -13,6 +13,7 @@ import EventDetails from './pages/client/pages/EventDetails'
 import Quotation from './pages/client/pages/Quotation'
 import Invoice from './pages/client/pages/Invoice'
 import ClientNotifications from './pages/client/pages/Notifications'
+import RaiseComplaint from './pages/client/pages/RaiseComplaint'
 import Works from './pages/client/pages/Works'
 import SaveTheDate from './pages/client/pages/preproduction/SaveTheDate'
 import SaveTheVideo from './pages/client/pages/preproduction/SaveTheVideo'
@@ -42,6 +43,7 @@ function App() {
             <Route path="preproduction/retouch" element={<Retouch />} />
             <Route path="events" element={<Events />} />
             <Route path="delivery" element={<Delivery />} />
+            <Route path="raise-complaint" element={<RaiseComplaint />} />
             <Route path="notifications" element={<ClientNotifications />} />
           </Route>
         </Route>
