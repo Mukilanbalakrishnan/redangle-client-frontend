@@ -43,6 +43,23 @@ const stepBadge: any = {
     waiting: { bg: '#f3f4f6', color: '#6b7280', label: 'Pending' },
 }
 
+const deliverableEmployees: Record<string, { name: string; role: string; status: string }[]> = {
+    'Save the Date Post': [
+        { name: 'Kavitha Rao', role: 'Designer', status: 'Designing post layout' },
+        { name: 'Arjun Nair', role: 'Editor', status: 'Color correction' },
+    ],
+    'Save the Date Video': [
+        { name: 'Vikram Sinha', role: 'Video Editor', status: 'Editing highlight clips' },
+        { name: 'Sneha Mehta', role: 'CRM Manager', status: 'Reviewing draft video' },
+    ],
+    'Candid': [
+        { name: 'Rahul Kumar', role: 'Photographer', status: 'Selecting best candid shots' },
+        { name: 'Priya Desai', role: 'Assistant', status: 'Organizing image files' },
+    ],
+    'Retouch': [
+        { name: 'Kavitha Rao', role: 'Photo Editor', status: 'Skin retouching and color grading' },
+    ],
+}
 
 export default function Tracker() {
     const [expandedStep, setExpandedStep] = useState<number | null>(null)
@@ -50,6 +67,7 @@ export default function Tracker() {
     const [loading, setLoading] = useState(true)
 
     const [stepStatuses, setStepStatuses] = useState<Record<string, 'waiting'|'in_progress'|'reupload'|'done'>>({})
+    const [doneSteps, setDoneSteps] = useState<string[]>([])
     const [teamAssigned, setTeamAssigned] = useState<any[]>([])
     const [dynamicDeliverableEmployees, setDynamicDeliverableEmployees] = useState<Record<string, any[]>>({})
 
@@ -78,6 +96,9 @@ export default function Tracker() {
                     ALL_STEPS.forEach(s => calculatedStatuses[s.label] = 'waiting');
 
                     // Phase 1: Onboarding logic
+                    let calculatedDoneSteps: string[] = [];
+
+                    // Phase 1: Onboarding logic based on LeadStage enum
                     const stage = lead.currentStage;
                     const index = STAGE_ORDER.indexOf(stage);
                     const currentStageIndex = index !== -1 ? index : 0;
@@ -87,6 +108,9 @@ export default function Tracker() {
                     }
                     if (currentStageIndex < STAGE_ORDER.length - 1) {
                          calculatedStatuses[STAGE_ORDER[currentStageIndex + 1]] = 'in_progress';
+                    // Mark all stages up to the current stage index as done
+                    for (let i = 0; i <= currentStageIndex; i++) {
+                        calculatedDoneSteps.push(STAGE_ORDER[i]);
                     }
 
                     let team: any[] = [];
@@ -106,6 +130,10 @@ export default function Tracker() {
                                 calculatedStatuses['Team Assigned'] = 'in_progress';
                             }
 
+                    // Phase 2: Production logic
+                    if (isProjectComplete) {
+                        if (lead.leadEmployee && lead.leadEmployee.length > 0) {
+                            calculatedDoneSteps.push('Team Assigned');
                             team = lead.leadEmployee.map((le: any) => ({
                                 name: `${le.employee?.firstName || ''} ${le.employee?.lastName || ''}`.trim(),
                                 role: le.employee?.position || 'Team Member',
@@ -168,6 +196,19 @@ export default function Tracker() {
                         }
 
                         const crmTasks = lead.leadEmployee?.filter((le: any) => 
+                                notes: le.taskName || 'Assigned to shoot'
+                            }));
+                        }
+                        
+                        if (lead.events && lead.events.length > 0) {
+                            calculatedDoneSteps.push('Outdoor Shoot Tracking');
+                            if (lead.events.some((e: any) => e.status === 'completed' || e.status === 'approved')) {
+                                calculatedDoneSteps.push('Shoot Completed', 'Photographer Upload', 'Videographer Upload', 'Data Manager Verification', 'Assigned to CRM');
+                            }
+                        }
+
+                        // Complete 'Work Status' if CRM tasks exist
+                        const hasCrmTasks = lead.leadEmployee?.some((le: any) => 
                             le.taskName && (le.taskName.toLowerCase().includes('retouch') || 
                                             le.taskName.toLowerCase().includes('post') || 
                                             le.taskName.toLowerCase().includes('video') || 
@@ -249,6 +290,63 @@ export default function Tracker() {
 
                     setStepStatuses(calculatedStatuses);
 
+                        )
+                        
+                        if (hasCrmTasks && calculatedDoneSteps.includes('Assigned to CRM')) {
+                            calculatedDoneSteps.push('CRM Verified', 'Pre-production CRM Deliverables');
+                        }
+                    }
+
+                    // Phase 3: Deliverables logic
+                    let delivMap: Record<string, any[]> = {};
+                    if (lead.leadEmployee && lead.leadEmployee.length > 0) {
+                        lead.leadEmployee.forEach((le: any) => {
+                            if (!le.taskName) return;
+                            const tName = le.taskName.toLowerCase();
+                            const empDetail = {
+                                name: `${le.employee?.firstName || ''} ${le.employee?.lastName || ''}`.trim(),
+                                role: le.employee?.position || 'Team Member',
+                                status: `Working on ${le.taskName}`,
+                                date: new Date(le.createdAt).toLocaleDateString(),
+                                notes: `Assigned for ${le.taskName}`,
+                                category: ''
+                            };
+
+                            if (tName.includes('post') || tName.includes('save the date')) {
+                                empDetail.category = 'Save the Date Post'
+                                if (!delivMap['Save the Date Post']) delivMap['Save the Date Post'] = [];
+                                delivMap['Save the Date Post'].push(empDetail);
+                            }
+                            if (tName.includes('video') || tName.includes('teaser')) {
+                                empDetail.category = 'Save the Date Video'
+                                if (!delivMap['Save the Date Video']) delivMap['Save the Date Video'] = [];
+                                delivMap['Save the Date Video'].push(empDetail);
+                            }
+                            if (tName.includes('candid') || tName.includes('photo')) {
+                                empDetail.category = 'Candid'
+                                if (!delivMap['Candid']) delivMap['Candid'] = [];
+                                delivMap['Candid'].push(empDetail);
+                            }
+                            if (tName.includes('retouch') || tName.includes('edit')) {
+                                empDetail.category = 'Retouch'
+                                if (!delivMap['Retouch']) delivMap['Retouch'] = [];
+                                delivMap['Retouch'].push(empDetail);
+                            }
+                        })
+                    }
+
+                    // If work status is complete, and we have ANY deliverable assignment, 
+                    // we mark 'Deliverables' as done. 
+                    // Wait, maybe we just mark it done if assignmentCount >= 4, 
+                    // or in progress if it's < 4? Let's just say it's done if there are 4 types.
+                    if (calculatedDoneSteps.includes('Pre-production CRM Deliverables')) {
+                        const assignmentCount = Object.keys(delivMap).length;
+                        if (assignmentCount >= 4) {
+                            calculatedDoneSteps.push('Deliverables');
+                        }
+                    }
+
+                    setDoneSteps(calculatedDoneSteps);
                     setTeamAssigned(team);
                     setDynamicDeliverableEmployees(delivMap);
                 }
@@ -271,6 +369,7 @@ export default function Tracker() {
 
     const doneCount = Object.values(stepStatuses).filter(v => v === 'done').length;
     const progressPct = Math.round((doneCount / ALL_STEPS.length) * 100);
+    const progressPct = Math.round((doneSteps.length / ALL_STEPS.length) * 100)
 
     const getStageEmployees = (label: string) => {
         if (label === 'Team Assigned') return teamAssigned;
@@ -280,6 +379,7 @@ export default function Tracker() {
             const categories = ['Save the Date Post', 'Save the Date Video', 'Candid', 'Retouch'];
             categories.forEach(cat => {
                 const arr = dynamicDeliverableEmployees[cat] || [];
+                const arr = dynamicDeliverableEmployees[cat] || deliverableEmployees[cat] || [];
                 arr.forEach(emp => {
                     all.push({ ...emp, category: cat });
                 });
@@ -324,12 +424,21 @@ export default function Tracker() {
                             <div className="h-2.5 rounded-full transition-all duration-500 ease-out" style={{ background: '#22c55e', width: `${progressPct}%` }} />
                         </div>
                         <span className="text-sm font-semibold" style={{ color: '#6B7280' }}>{doneCount}/{ALL_STEPS.length}</span>
+                        <span className="text-sm font-semibold" style={{ color: '#6B7280' }}>{doneSteps.length}/{ALL_STEPS.length}</span>
                     </div>
                 </div>
 
                 <div className="relative">
                     {ALL_STEPS.map((s, i) => {
                         const stepStatus = stepStatuses[s.label] || 'waiting';
+                        const isDone = doneSteps.includes(s.label)
+                        const isCurrent = i === doneSteps.length
+                        const isReupload = isCurrent && s.label === 'Videographer Upload'; // example static logic if needed
+                        
+                        let stepStatus = 'waiting'
+                        if (isDone) stepStatus = 'done'
+                        else if (isReupload) stepStatus = 'reupload'
+                        else if (isCurrent) stepStatus = 'in_progress'
 
                         const isExpanded = expandedStep === i
                         const employees = getStageEmployees(s.label)
@@ -413,6 +522,8 @@ export default function Tracker() {
                                                                             <p className="text-sm" style={{ color: '#6B7280' }}>{emp.status || emp.notes}</p>
                                                                         </div>
                                                                         <div className="flex items-center gap-3 mt-2">
+                                                                        <p className="text-sm mb-1" style={{ color: '#6B7280' }}>{emp.status || emp.notes}</p>
+                                                                        <div className="flex items-center gap-3">
                                                                            <p className="text-xs font-medium" style={{ color: '#9CA3AF' }}>📅 {emp.date || 'TBD'}</p>
                                                                            {emp.category && (
                                                                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider" style={{ background: '#ede9fe', color: '#5B5FC7' }}>
