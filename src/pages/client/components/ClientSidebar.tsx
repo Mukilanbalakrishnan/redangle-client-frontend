@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Compass, Camera, Download, FileText, IndianRupee, Bell, LogOut, BriefcaseBusiness, Film, ChevronDown } from 'lucide-react'
 import { LayoutDashboard, Compass, Camera, Download, FileText, IndianRupee, Bell, LogOut, BriefcaseBusiness, Film, ChevronDown, MessageSquareWarning } from 'lucide-react'
 
 const navItems = [

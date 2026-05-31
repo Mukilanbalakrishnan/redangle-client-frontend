@@ -66,6 +66,7 @@ export default function Tracker() {
     const [clientInfo, setClientInfo] = useState<any>({ name: 'Loading...', event: 'Loading...', eventDate: '-', leadFollowedBy: '-' })
     const [loading, setLoading] = useState(true)
 
+    const [stepStatuses, setStepStatuses] = useState<Record<string, 'waiting'|'in_progress'|'reupload'|'done'>>({})
     const [doneSteps, setDoneSteps] = useState<string[]>([])
     const [teamAssigned, setTeamAssigned] = useState<any[]>([])
     const [dynamicDeliverableEmployees, setDynamicDeliverableEmployees] = useState<Record<string, any[]>>({})
@@ -91,6 +92,10 @@ export default function Tracker() {
                         leadFollowedBy: lead.leadFollowedBy || 'Not Assigned'
                     });
 
+                    let calculatedStatuses: Record<string, 'waiting'|'in_progress'|'reupload'|'done'> = {};
+                    ALL_STEPS.forEach(s => calculatedStatuses[s.label] = 'waiting');
+
+                    // Phase 1: Onboarding logic
                     let calculatedDoneSteps: string[] = [];
 
                     // Phase 1: Onboarding logic based on LeadStage enum
@@ -98,6 +103,11 @@ export default function Tracker() {
                     const index = STAGE_ORDER.indexOf(stage);
                     const currentStageIndex = index !== -1 ? index : 0;
                     
+                    for (let i = 0; i <= currentStageIndex; i++) {
+                        calculatedStatuses[STAGE_ORDER[i]] = 'done';
+                    }
+                    if (currentStageIndex < STAGE_ORDER.length - 1) {
+                         calculatedStatuses[STAGE_ORDER[currentStageIndex + 1]] = 'in_progress';
                     // Mark all stages up to the current stage index as done
                     for (let i = 0; i <= currentStageIndex; i++) {
                         calculatedDoneSteps.push(STAGE_ORDER[i]);
@@ -106,6 +116,20 @@ export default function Tracker() {
                     let team: any[] = [];
                     const isProjectComplete = currentStageIndex === STAGE_ORDER.length - 1; // Finalised
                     
+                    if (isProjectComplete) {
+                        // Team Assigned
+                        if (lead.leadEmployee && lead.leadEmployee.length > 0) {
+                            const hasProductionTeam = lead.leadEmployee.some((le: any) => {
+                                const t = le.taskName?.toLowerCase() || '';
+                                return !t.includes('post') && !t.includes('video') && !t.includes('retouch') && !t.includes('candid');
+                            });
+                            
+                            if (hasProductionTeam) {
+                                calculatedStatuses['Team Assigned'] = 'done';
+                            } else {
+                                calculatedStatuses['Team Assigned'] = 'in_progress';
+                            }
+
                     // Phase 2: Production logic
                     if (isProjectComplete) {
                         if (lead.leadEmployee && lead.leadEmployee.length > 0) {
@@ -114,6 +138,64 @@ export default function Tracker() {
                                 name: `${le.employee?.firstName || ''} ${le.employee?.lastName || ''}`.trim(),
                                 role: le.employee?.position || 'Team Member',
                                 date: new Date(le.createdAt).toLocaleDateString(),
+                                notes: le.taskName || 'Assigned to shoot',
+                                uiColor: 'done' // standard production team
+                            }));
+                        } else {
+                            calculatedStatuses['Team Assigned'] = 'in_progress';
+                        }
+
+                        if (calculatedStatuses['Team Assigned'] === 'done') {
+                            if (lead.events && lead.events.length > 0) {
+                                const hasCompleted = lead.events.some((e: any) => e.status === 'completed' || e.status === 'approved');
+                                const hasInProgress = lead.events.some((e: any) => e.status === 'inprogress');
+                                
+                                if (hasCompleted) {
+                                    calculatedStatuses['Outdoor Shoot Tracking'] = 'done';
+                                    calculatedStatuses['Shoot Completed'] = 'done';
+                                } else if (hasInProgress) {
+                                    calculatedStatuses['Outdoor Shoot Tracking'] = 'in_progress';
+                                    calculatedStatuses['Shoot Completed'] = 'waiting';
+                                } else {
+                                    calculatedStatuses['Outdoor Shoot Tracking'] = 'in_progress';
+                                }
+                            } else {
+                                calculatedStatuses['Outdoor Shoot Tracking'] = 'in_progress';
+                            }
+                        }
+
+                        if (calculatedStatuses['Shoot Completed'] === 'done') {
+                            const photoDelivery = lead.clientDeliveries?.find((cd: any) => cd.deliveryType.toLowerCase().includes('raw image'));
+                            const videoDelivery = lead.clientDeliveries?.find((cd: any) => cd.deliveryType.toLowerCase().includes('raw video'));
+                            
+                            if (photoDelivery) {
+                                const status = photoDelivery.status.toLowerCase();
+                                if (status === 'rework') calculatedStatuses['Photographer Upload'] = 'reupload';
+                                else if (['completed', 'approved', 'verified'].includes(status)) calculatedStatuses['Photographer Upload'] = 'done';
+                                else calculatedStatuses['Photographer Upload'] = 'in_progress';
+                            } else {
+                                calculatedStatuses['Photographer Upload'] = 'in_progress';
+                            }
+
+                            if (videoDelivery) {
+                                const status = videoDelivery.status.toLowerCase();
+                                if (status === 'rework') calculatedStatuses['Videographer Upload'] = 'reupload';
+                                else if (['completed', 'approved', 'verified'].includes(status)) calculatedStatuses['Videographer Upload'] = 'done';
+                                else calculatedStatuses['Videographer Upload'] = 'in_progress';
+                            } else {
+                                calculatedStatuses['Videographer Upload'] = 'in_progress';
+                            }
+                        }
+
+                        if (calculatedStatuses['Photographer Upload'] === 'done' || calculatedStatuses['Videographer Upload'] === 'done') {
+                            const isAllUploadedDone = (calculatedStatuses['Photographer Upload'] === 'done' || calculatedStatuses['Photographer Upload'] === 'waiting') && 
+                                                      (calculatedStatuses['Videographer Upload'] === 'done' || calculatedStatuses['Videographer Upload'] === 'waiting');
+                            if (isAllUploadedDone) {
+                                calculatedStatuses['Data Manager Verification'] = 'in_progress';
+                            }
+                        }
+
+                        const crmTasks = lead.leadEmployee?.filter((le: any) => 
                                 notes: le.taskName || 'Assigned to shoot'
                             }));
                         }
@@ -131,6 +213,83 @@ export default function Tracker() {
                                             le.taskName.toLowerCase().includes('post') || 
                                             le.taskName.toLowerCase().includes('video') || 
                                             le.taskName.toLowerCase().includes('candid'))
+                        ) || [];
+                        
+                        if (crmTasks.length > 0) {
+                            calculatedStatuses['Data Manager Verification'] = 'done';
+                            calculatedStatuses['Assigned to CRM'] = 'done';
+                            calculatedStatuses['Pre-production CRM Deliverables'] = 'in_progress';
+                        } else if (calculatedStatuses['Data Manager Verification'] === 'in_progress') {
+                            calculatedStatuses['Assigned to CRM'] = 'in_progress';
+                        }
+                    }
+
+                    let delivMap: Record<string, any[]> = {};
+                    if (lead.leadEmployee && lead.leadEmployee.length > 0) {
+                        let crmTaskCount = 0;
+                        let crmDoneCount = 0;
+
+                        lead.leadEmployee.forEach((le: any) => {
+                            if (!le.taskName) return;
+                            const tName = le.taskName.toLowerCase();
+                            
+                            let category = '';
+                            if (tName.includes('post') || tName.includes('save the date')) category = 'Save the Date Post';
+                            else if (tName.includes('video') || tName.includes('teaser')) category = 'Save the Date Video';
+                            else if (tName.includes('candid') || tName.includes('photo')) category = 'Candid';
+                            else if (tName.includes('retouch') || tName.includes('edit')) category = 'Retouch';
+
+                            if (category) {
+                                crmTaskCount++;
+                                const relatedDelivery = lead.clientDeliveries?.find((cd: any) => cd.deliveryType.toLowerCase().includes(category.toLowerCase()));
+                                const statusFromDb = relatedDelivery ? relatedDelivery.status.toLowerCase() : 'pending';
+                                
+                                let mappedStatus = 'Pending';
+                                let uiColor = 'in_progress';
+                                
+                                if (['completed', 'approved', 'verified'].includes(statusFromDb)) {
+                                    mappedStatus = 'Completed';
+                                    uiColor = 'done';
+                                    crmDoneCount++;
+                                } else if (statusFromDb === 'rework') {
+                                    mappedStatus = 'Re-upload';
+                                    uiColor = 'reupload';
+                                }
+
+                                const empDetail = {
+                                    name: `${le.employee?.firstName || ''} ${le.employee?.lastName || ''}`.trim(),
+                                    role: le.employee?.position || 'Team Member',
+                                    status: mappedStatus,
+                                    uiColor: uiColor,
+                                    date: new Date(le.createdAt).toLocaleDateString(),
+                                    notes: le.description || `Assigned for ${le.taskName}`,
+                                    category: category
+                                };
+
+                                if (!delivMap[category]) delivMap[category] = [];
+                                delivMap[category].push(empDetail);
+                            }
+                        });
+
+                        if (crmTaskCount > 0) {
+                            if (crmDoneCount === crmTaskCount) {
+                                calculatedStatuses['CRM Verified'] = 'done';
+                                calculatedStatuses['Pre-production CRM Deliverables'] = 'done';
+                                calculatedStatuses['Deliverables'] = 'done';
+                            } else {
+                                const hasRework = Object.values(delivMap).flat().some(emp => emp.uiColor === 'reupload');
+                                if (hasRework) {
+                                    calculatedStatuses['Deliverables'] = 'reupload';
+                                    calculatedStatuses['Pre-production CRM Deliverables'] = 'reupload';
+                                } else {
+                                    calculatedStatuses['Deliverables'] = 'in_progress';
+                                }
+                            }
+                        }
+                    }
+
+                    setStepStatuses(calculatedStatuses);
+
                         )
                         
                         if (hasCrmTasks && calculatedDoneSteps.includes('Assigned to CRM')) {
@@ -208,6 +367,8 @@ export default function Tracker() {
         )
     }
 
+    const doneCount = Object.values(stepStatuses).filter(v => v === 'done').length;
+    const progressPct = Math.round((doneCount / ALL_STEPS.length) * 100);
     const progressPct = Math.round((doneSteps.length / ALL_STEPS.length) * 100)
 
     const getStageEmployees = (label: string) => {
@@ -217,6 +378,7 @@ export default function Tracker() {
             let all: any[] = [];
             const categories = ['Save the Date Post', 'Save the Date Video', 'Candid', 'Retouch'];
             categories.forEach(cat => {
+                const arr = dynamicDeliverableEmployees[cat] || [];
                 const arr = dynamicDeliverableEmployees[cat] || deliverableEmployees[cat] || [];
                 arr.forEach(emp => {
                     all.push({ ...emp, category: cat });
@@ -261,12 +423,14 @@ export default function Tracker() {
                         <div className="w-full max-w-[200px] h-2.5 rounded-full" style={{ background: '#F3F4F6' }}>
                             <div className="h-2.5 rounded-full transition-all duration-500 ease-out" style={{ background: '#22c55e', width: `${progressPct}%` }} />
                         </div>
+                        <span className="text-sm font-semibold" style={{ color: '#6B7280' }}>{doneCount}/{ALL_STEPS.length}</span>
                         <span className="text-sm font-semibold" style={{ color: '#6B7280' }}>{doneSteps.length}/{ALL_STEPS.length}</span>
                     </div>
                 </div>
 
                 <div className="relative">
                     {ALL_STEPS.map((s, i) => {
+                        const stepStatus = stepStatuses[s.label] || 'waiting';
                         const isDone = doneSteps.includes(s.label)
                         const isCurrent = i === doneSteps.length
                         const isReupload = isCurrent && s.label === 'Videographer Upload'; // example static logic if needed
@@ -353,6 +517,11 @@ export default function Tracker() {
                                                                             <span className="text-sm font-bold" style={{ color: '#111827' }}>{emp.name}</span>
                                                                             <span className="text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-wider" style={{ background: '#f3f4f6', color: '#6B7280' }}>{emp.role}</span>
                                                                         </div>
+                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${emp.uiColor === 'done' ? 'bg-green-500' : emp.uiColor === 'reupload' ? 'bg-yellow-500' : emp.uiColor === 'in_progress' ? 'bg-yellow-400' : 'bg-gray-400'}`}></div>
+                                                                            <p className="text-sm" style={{ color: '#6B7280' }}>{emp.status || emp.notes}</p>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-3 mt-2">
                                                                         <p className="text-sm mb-1" style={{ color: '#6B7280' }}>{emp.status || emp.notes}</p>
                                                                         <div className="flex items-center gap-3">
                                                                            <p className="text-xs font-medium" style={{ color: '#9CA3AF' }}>📅 {emp.date || 'TBD'}</p>
